@@ -1,0 +1,12 @@
+train: "F:/Yolo Project/Yolo/Yolov11/FD - Class Attendant.v1i.yolov11/train/images"
+val: "F:/Yolo Project/Yolo/Yolov11/FD - Class Attendant.v1i.yolov11/valid/images"
+
+nc: 13
+names: ['Chantra', 'David', 'Kholine', 'Meysorng', 'Monineath', 'Mony', 'Nyvath', 'Pheakdey', 'Piseth', 'Sopheak', 'Theary', 'Vatana', 'Vireak']
+
+roboflow:
+  workspace: face-detection-xko3d
+  project: fd-class-attendant
+  version: 1
+  license: CC BY 4.0
+  url: https://universe.roboflow.com/face-detection-xko3d/fd-class-attendant/dataset/1
