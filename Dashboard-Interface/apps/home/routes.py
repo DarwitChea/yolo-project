@@ -7,13 +7,20 @@ from apps.home import blueprint
 from flask import render_template, request
 from flask_login import login_required
 from jinja2 import TemplateNotFound
+import pandas as pd
 
 
 @blueprint.route('/index')
 @login_required
 def index():
+    
+    excelPath = '/Users/zekk/Documents/Code/YoloProject/Yolov11/attendance.xlsx'
 
-    return render_template('home/index.html', segment='index')
+    df = pd.read_excel(excelPath)
+    columns = df.columns.tolist()
+    data = df.to_dict(orient='records')
+    
+    return render_template('home/index.html', data=data, columns=columns, segment='index')
 
 
 @blueprint.route('/<template>')

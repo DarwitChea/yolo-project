@@ -8,6 +8,62 @@
 {% block content %}
 
     <div class="container-fluid py-4">
+    <div class="row">
+      <div class="col-12">
+        <div class="card my-4">
+          <div class="card-header p-0 position-relative mt-n4 mx-3 z-index-2">
+            <div class="bg-gradient-info shadow-primary border-radius-lg pt-4 pb-3">
+              <h6 class="text-white text-capitalize ps-3">Student List</h6>
+            </div>
+          </div>
+          <div class="card-body px-0 pb-2">
+            <div style="overflow-x: auto; padding: 0; max-width: 100%;">
+              <table style="width: 100%; border-collapse: collapse;" class="table align-items-center mb-0">
+                <thead>
+                  <tr>
+                    {% for col in columns %}
+                      {% if col == 'No' %}
+                        <th style="width: 50px;" class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7 text-center">{{ col }}</th>
+                      {% elif col in ['Name', 'Email'] %}
+                        <th style="width: 120px; white-space: nowrap;" class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7 text-start">{{ col }}</th>
+                      {% else %}
+                        <th style="min-width: 100px; max-width: 120px;" class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7 text-center">
+                          <div style="white-space: normal; word-break: break-word; display: inline-block;">
+                            {{ col | safe }}
+                          </div>
+                        </th>
+                      {% endif %}
+                    {% endfor %}
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for row in data %}
+                    <tr>
+                      {% for col in columns %}
+                        {% if col == 'No' %}
+                          <td style="width: 50px;" class="text-center">{{ row[col] }}</td>
+                        {% elif col in ['Name', 'Email'] %}
+                          <td style="width: 150px; white-space: nowrap;" class="text-start">{{ row[col] }}</td>
+                        {% else %}
+                          <td style="min-width: 100px; max-width: 120px; white-space: normal; word-break: break-word;" class="text-center">
+                            <div style="white-space: normal; word-break: break-word; display: inline-block;">
+                              {{ row[col] }}
+                            </div>
+                          </td>
+                        {% endif %}
+                      {% endfor %}
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+            
+          </div>
+        </div>
+      </div>
+    </div>
+    </div>
+    <div class="container-fluid py-4">
       <div class="row">
         <div class="col-xl-3 col-sm-6 mb-xl-0 mb-4">
           <div class="card">
@@ -744,3 +800,5 @@
   </script>
 
 {% endblock javascripts %}
+
+

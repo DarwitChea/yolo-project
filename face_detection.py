@@ -1,3 +1,4 @@
+import os
 from ultralytics import YOLO
 from ultralytics.utils.plotting import Annotator
 import cv2
@@ -7,33 +8,54 @@ import time
 from collections import defaultdict
 
 # Load your trained model
-model = YOLO(
-    "/Users/zekk/Documents/Code/YoloProject/Yolov11/ClassAttendantWeight_640.pt")
+model = YOLO("/Users/zekk/Documents/Code/YoloProject/Yolov11/ClassAttendantWeight_640.pt")
 names = ['Chantra', 'David', 'Kholine', 'Meysorng', 'Monineath', 'Mony',
          'Nyvath', 'Pheakdey', 'Piseth', 'Sopheak', 'Theary', 'Vatana', 'Vireak']
 
-# Initialize webcam
+# File paths
+master_file = "/Users/zekk/Documents/Code/YoloProject/Yolov11/student-list.xlsx"
+attendance_file = "attendance.xlsx"
+
+# Face Detect Conf & Duration to get Detected
+confidence_threshold = 0.9
+min_detection_duration = 3  # seconds
+
+# === Load master list ===
+if os.path.exists(master_file):
+    master_df = pd.read_excel(master_file)
+else:
+    raise FileNotFoundError("master_list.xlsx not found!")
+
+# === Load or initialize attendance sheet ===
+if os.path.exists(attendance_file):
+    attendance_df = pd.read_excel(attendance_file)
+else:
+    attendance_df = master_df.copy()
+
+# === Add new session column ===
+today_str = datetime.now().strftime("%Y-%m-%d")
+session_cols = [col for col in attendance_df.columns if col.startswith("Session")]
+next_session = f"Session {len(session_cols) + 1} - {today_str}"
+attendance_df[next_session] = 0  # Mark all 0 initially
+
+# === Initialize webcam ===
 cap = cv2.VideoCapture(0)
 assert cap.isOpened(), "Can't access webcam"
 
-# Get video properties
 width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
 height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
 fps = int(cap.get(cv2.CAP_PROP_FPS)) or 30
 
-# Define video writer
-fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+# === Video writer setup ===
 video_writer = cv2.VideoWriter(
-    'attendance_output.mp4', fourcc, fps, (width, height))
+    'attendance_output.mp4', 
+    cv2.VideoWriter_fourcc(*'mp4v'), 
+    fps, 
+    (width, height)
+)
 
-# Logging setup
-log_data = []
+# === Detection state ===
 logged_names = set()
-columns = ["Timestamp", "Name", "Confidence", "X1", "Y1", "X2", "Y2"]
-confidence_threshold = 0.8
-min_detection_duration = 3  # seconds
-
-# Tracking detection duration
 detection_start_times = defaultdict(lambda: None)
 
 while True:
@@ -42,7 +64,7 @@ while True:
         print("Failed to grab frame")
         break
 
-    # YOLO prediction
+    # Yolo Predition Script
     results = model.predict(source=frame, show=False)[0]
     boxes = results.boxes.xyxy.cpu().tolist()
     clss = results.boxes.cls.cpu().tolist()
@@ -68,13 +90,10 @@ while True:
         else:
             duration = current_time - detection_start_times[name]
             if duration >= min_detection_duration:
-                timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                log_data.append([timestamp, name, round(
-                    conf, 3)] + [round(c, 2) for c in box])
                 logged_names.add(name)
                 print(f"[✔] Logged {name} after {duration:.1f}s")
 
-    # Show and record annotated frame
+    # Show and record frame
     frame = annotator.result()
     cv2.imshow("Class Attendance - Face Recognition", frame)
     video_writer.write(frame)
@@ -82,11 +101,11 @@ while True:
     if cv2.waitKey(1) & 0xFF == ord('q'):
         break
 
-# Save record to Excel
-df = pd.DataFrame(log_data, columns=columns)
-df.to_excel("attendance.xlsx", index=False)
-print("Attendance saved to attendance.xlsx")
-
 cap.release()
 video_writer.release()
 cv2.destroyAllWindows()
+
+# Update & Save attendance 
+attendance_df[next_session] = attendance_df["Name"].apply(lambda x: 1 if x in logged_names else 0) 
+attendance_df.to_excel(attendance_file, index=False)
+print(f"[✓] Attendance updated and saved to {attendance_file}")
