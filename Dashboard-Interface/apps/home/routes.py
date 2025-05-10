@@ -3,12 +3,59 @@
 Copyright (c) 2019 - present AppSeed.us
 """
 
+import io
+from PIL import Image
+import cv2
+import numpy as np
+from ultralytics import YOLO
 from apps.home import blueprint
-from flask import render_template, request
+from flask import jsonify, render_template, request
 from flask_login import login_required
 from jinja2 import TemplateNotFound
 import pandas as pd
 
+# Load model once at module level
+model = YOLO("/Users/zekk/Documents/Code/YoloProject/Yolov11/ClassAttendantWeight_640.pt")
+names = ['Chantra', 'David', 'Kholine', 'Meysorng', 'Monineath', 'Mony',
+         'Nyvath', 'Pheakdey', 'Piseth', 'Sopheak', 'Theary', 'Vatana', 'Vireak']
+
+@blueprint.route('/process_frame', methods=['POST'])
+@login_required
+def process_frame():
+    if 'image' not in request.files:
+        return jsonify({"error": "No image file provided"}), 400
+
+    image_file = request.files['image']
+    img = Image.open(io.BytesIO(image_file.read()))
+
+    # Convert the image to a format that YOLO can work with (if needed)
+    img = img.convert('RGB')
+
+    # YOLO Inference (you may need to adjust this based on how you want to handle the image)
+    results = model.predict(img)
+    
+    detected_faces = []
+    
+    for result in results:
+        for box, conf, cls in zip(result.boxes.xyxy, result.boxes.conf, result.boxes.cls):
+            if conf > 0.9:
+                name = str(model.names[int(cls)])
+
+                x1, y1, x2, y2 = box.tolist()
+                print(f"Detected {name} with confidence {conf:.2f} at [{x1}, {y1}, {x2}, {y2}]")
+                width = x2 - x1
+                height = y2 - y1
+
+                detected_faces.append({
+                    "name": name,
+                    "x": int(x1),
+                    "y": int(y1),
+                    "conf": float(conf),
+                    "width": int(width),
+                    "height": int(height)
+                })
+    
+    return jsonify({"detected": detected_faces})
 
 @blueprint.route('/index')
 @login_required
@@ -21,7 +68,6 @@ def index():
     data = df.to_dict(orient='records')
     
     return render_template('home/index.html', data=data, columns=columns, segment='index')
-
 
 @blueprint.route('/<template>')
 @login_required
