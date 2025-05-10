@@ -30,15 +30,15 @@
                   <tr>
                     {% for col in columns %}
                       {% if col == 'No' %}
-                        <th style="width: 50px;" class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7 text-center">{{ col }}</th>
-                      {% elif col in ['Name', 'Email'] %}
-                        <th style="width: 120px; white-space: nowrap;" class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7 text-start">{{ col }}</th>
-                      {% else %}
-                        <th style="min-width: 120px; max-width: 140px;" class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7 text-center">
-                          <div style="white-space: normal; word-break: break-word; display: inline-block;">
-                            {{ col | safe }}
-                          </div>
-                        </th>
+                          <th style="width: 50px;" class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7 text-center">{{ col }}</th>
+                        {% elif col in ['Name', 'Email'] %}
+                          <th style="width: 120px; white-space: nowrap;" class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7 text-start">{{ col }}</th>
+                        {% else %}
+                          <th style="min-width: 120px; max-width: 140px;" class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7 text-center">
+                            <div style="white-space: normal; word-break: break-word; display: inline-block;">
+                              {{ col | safe }}
+                            </div>
+                          </th>
                       {% endif %}
                     {% endfor %}
                   </tr>
@@ -586,10 +586,10 @@
     const captureCanvas = document.getElementById("captureCanvas");
     let videoStream = null;
     let detectionInterval = null;
-
+  
     // Start webcam when modal opens
     const videoModal = new bootstrap.Modal(document.getElementById('videoModal'));
-
+  
     document.getElementById('videoModal').addEventListener('shown.bs.modal', function () {
       navigator.mediaDevices.getUserMedia({ video: true })
         .then(stream => {
@@ -600,7 +600,7 @@
           alert("Please allow webcam access.");
         });
     });
-
+  
     document.getElementById('videoModal').addEventListener('hidden.bs.modal', function () {
       // Stop the webcam stream when modal closes
       if (videoStream) {
@@ -610,38 +610,38 @@
       video.srcObject = null;
       clearInterval(detectionInterval);  // Stop detection when the modal closes
     });
-
+  
     // Set canvas size to match the video resolution
     video.addEventListener("loadedmetadata", () => {
       const width = video.videoWidth;
       const height = video.videoHeight;
-
+  
       // Set canvas size to match video resolution
       overlayCanvas.width = width;
       overlayCanvas.height = height;
       captureCanvas.width = width;
       captureCanvas.height = height;
     });
-
+  
     // Function to start continuous face detection
     function startDetection() {
       detectionInterval = setInterval(() => {
         captureAndDetect();
-      }, 100); // Capture frame every 100ms (10fps)
+      }, 100); // Capture frame every 50ms (20fps)
     }
-
+  
     function captureAndDetect() {
       const width = video.videoWidth;
       const height = video.videoHeight;
-    
+  
       // Capture the video frame on the hidden canvas
       const captureCtx = captureCanvas.getContext("2d");
       captureCtx.drawImage(video, 0, 0, width, height);
-    
+  
       captureCanvas.toBlob(blob => {
         const formData = new FormData();
         formData.append('image', blob, 'frame.jpg');
-    
+  
         fetch('/process_frame', {
           method: 'POST',
           body: formData
@@ -650,32 +650,33 @@
         .then(data => {
           const overlayCtx = overlayCanvas.getContext("2d");
           overlayCtx.clearRect(0, 0, width, height); // Clear the canvas before drawing new boxes
-    
+  
           if (data.detected && data.detected.length > 0) {
             const videoWidth = video.offsetWidth;
             const videoHeight = video.offsetHeight;
-    
+  
             data.detected.forEach(face => {
               const { x, y, width, height, name, conf } = face;
-    
+  
+              // Scale bounding box to match the displayed video size
               const scaledX = (x / video.videoWidth) * videoWidth;
               const scaledY = (y / video.videoHeight) * videoHeight;
               const scaledWidth = (width / video.videoWidth) * videoWidth;
               const scaledHeight = (height / video.videoHeight) * videoHeight;
-    
+  
               // Draw the bounding box on overlay canvas
               overlayCtx.beginPath();
               overlayCtx.rect(scaledX, scaledY, scaledWidth, scaledHeight);
               overlayCtx.lineWidth = 2;
               overlayCtx.strokeStyle = "lime";
               overlayCtx.stroke();
-    
+  
               // Ensure the text is visible by setting appropriate styles
               overlayCtx.fillStyle = "lime";
-              overlayCtx.font = "18px Arial"; // Adjust font size
+              overlayCtx.font = "16px Arial"; // Adjust font size
               overlayCtx.textBaseline = "top"; // Ensure text alignment is correct
-              
-              // Display name and raw confidence score in the format: "confidence 0.97"
+  
+              // Display name and raw confidence score in the format: "name confidence 0.97"
               overlayCtx.fillText(
                 `${name} ${conf.toFixed(2)}`,  // Show raw confidence score in desired format
                 scaledX + 5, // Horizontal padding from the box
@@ -686,10 +687,8 @@
         });
       }, 'image/jpeg');
     }
-  
   </script>
   
-
   <script>
     var ctx = document.getElementById("chart-bars").getContext("2d");
 
