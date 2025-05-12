@@ -7,12 +7,11 @@ from datetime import datetime
 import time
 from collections import defaultdict
 
-# Load your trained model
+# Load trained model
 model = YOLO("/Users/zekk/Documents/Code/YoloProject/Yolov11/ClassAttendantWeight_640.pt")
 names = ['Chantra', 'David', 'Kholine', 'Meysorng', 'Monineath', 'Mony',
          'Nyvath', 'Pheakdey', 'Piseth', 'Sopheak', 'Theary', 'Vatana', 'Vireak']
 
-# File paths
 master_file = "/Users/zekk/Documents/Code/YoloProject/Yolov11/student-list.xlsx"
 attendance_file = "attendance.xlsx"
 
@@ -33,9 +32,9 @@ else:
     attendance_df = master_df.copy()
 
 # === Add new session column ===
-today_str = datetime.now().strftime("%Y-%m-%d")
+today_str = datetime.now().strftime("%d-%m-%Y")
 session_cols = [col for col in attendance_df.columns if col.startswith("Session")]
-next_session = f"Session {len(session_cols) + 1} - {today_str}"
+next_session = f"Session {len(session_cols) + 1} {today_str}"
 attendance_df[next_session] = 0  # Mark all 0 initially
 
 # === Initialize webcam ===
