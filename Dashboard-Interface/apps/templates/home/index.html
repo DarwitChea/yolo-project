@@ -2,9 +2,6 @@
 
 {% block title %} Dashboard {% endblock %} 
 
-<!-- Specific Page CSS goes HERE  -->
-{% block stylesheets %}{% endblock stylesheets %}
-
 {% block content %}
 
     <div class="container-fluid py-4">
@@ -73,9 +70,9 @@
     <div class="modal fade" id="videoModal" tabindex="-1" aria-labelledby="videoModalLabel" aria-hidden="true">
       <div class="modal-dialog modal-lg">
         <div class="modal-content">
-          <div class="modal-header">
-            <h5 class="modal-title" id="videoModalLabel">Class Attendance - Face Recognition</h5>
-            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          <div class="modal-header px-4">
+            <h5 class="modal-title" id="videoModalLabel">Class Attendance</h5>
+            <button type="button" class="btn-close btn-close-black" data-bs-dismiss="modal" aria-label="Close"></button>
           </div>
           <div style="position: relative;">
             <video id="video" autoplay playsinline style="width: 100%; height: auto;"></video>
@@ -85,8 +82,8 @@
             <canvas id="captureCanvas" style="display: none;"></canvas>
           </div>
           <div class="modal-footer">
-            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-            <button class="btn btn-primary" onclick="startDetection()">Start Detection</button>
+            <!-- <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button> -->
+            <button id="startDetection" class="btn btn-info" onclick="startDetection()">Start Detection</button>
           </div>
         </div>
       </div>
@@ -584,6 +581,8 @@
     const video = document.getElementById("video");
     const overlayCanvas = document.getElementById("overlayCanvas");
     const captureCanvas = document.getElementById("captureCanvas");
+    const startDetectionButton = document.getElementById("startDetection");
+    let isDetectionRunning = false;
     let videoStream = null;
     let detectionInterval = null;
   
@@ -625,9 +624,32 @@
   
     // Function to start continuous face detection
     function startDetection() {
+      if (isDetectionRunning) {
+        isDetectionRunning = false;
+        startDetectionButton.innerHTML = "Start Detection";
+        
+        // ✅ Close the modal when stopping detection
+        const videoModalInstance = bootstrap.Modal.getInstance(document.getElementById('videoModal'));
+        videoModalInstance.hide();
+    
+        return;
+      }
+    
+      isDetectionRunning = true;
+      startDetectionButton.innerHTML = "Stop Detection";
+    
+      startSession(); // Start the session on the server
       detectionInterval = setInterval(() => {
         captureAndDetect();
-      }, 100); // Capture frame every 50ms (20fps)
+      }, 100); // Capture frame every 100ms (10fps)
+    }
+
+    function startSession(){
+      fetch('/start_session', {
+        method: 'POST'
+      })
+      .then(res => res.json())
+      .then(data => {})
     }
   
     function captureAndDetect() {
@@ -673,8 +695,8 @@
   
               // Ensure the text is visible by setting appropriate styles
               overlayCtx.fillStyle = "lime";
-              overlayCtx.font = "16px Arial"; // Adjust font size
-              overlayCtx.textBaseline = "top"; // Ensure text alignment is correct
+              overlayCtx.font = "16px Arial"; 
+              overlayCtx.textBaseline = "top"; 
   
               // Display name and raw confidence score in the format: "name confidence 0.97"
               overlayCtx.fillText(
@@ -939,4 +961,11 @@
 
 {% endblock javascripts %}
 
+{% block stylesheets %}
+  <style>
+  .btn-close-black {
+    filter: invert(1);
+  }
 
+  </style>
+{% endblock stylesheets %}
