@@ -12,11 +12,22 @@
             <div class="bg-gradient-info shadow-primary border-radius-lg ">
               <div class="d-flex align-items-center justify-content-between px-3">
                 <h6 class="text-white text-capitalize mb-0">Student List</h6>
-                <a class="btn bg-gray-100 mt-3" 
-                  target="_blank" 
-                  href="https://appseed.us/support/" type="button" data-bs-toggle="modal" data-bs-target="#videoModal">
-                  Start
-                </a>
+                <div class="d-flex gap-3 mt-3">
+                  <!-- Export Button -->
+                  <a class="btn bg-gray-100" href="/export_attendance" download>
+                    Export
+                  </a>
+          
+                  <!-- Start Button -->
+                  <a class="btn bg-gray-100" 
+                     target="_blank" 
+                     href="https://appseed.us/support/" 
+                     type="button" 
+                     data-bs-toggle="modal" 
+                     data-bs-target="#videoModal">
+                    Start
+                  </a>
+                </div>
               </div>
             </div>
           </div>
@@ -33,7 +44,7 @@
                         {% else %}
                           <th style="min-width: 120px; max-width: 140px;" class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7 text-center">
                             <div style="white-space: normal; word-break: break-word; display: inline-block;">
-                              {{ col | safe }}
+                              {{ col.replace('\n', '<br>') | safe }}
                             </div>
                           </th>
                       {% endif %}
@@ -65,6 +76,9 @@
           </div>
         </div>
       </div>
+      <a class="btn bg-white" href="/export_attendance" download>
+        Reset List
+      </a>
     </div>
     <!-- Modal for Video Feed -->
     <div class="modal fade" id="videoModal" tabindex="-1" aria-labelledby="videoModalLabel" aria-hidden="true">
@@ -89,7 +103,7 @@
       </div>
     </div>
     </div>
-    <div class="container-fluid py-4">
+    <!-- <div class="container-fluid py-4">
       <div class="row">
         <div class="col-xl-3 col-sm-6 mb-xl-0 mb-4">
           <div class="card">
@@ -569,7 +583,7 @@
       </div>
 
       {% include 'includes/footer.html' %}
-    </div>
+    </div> -->
 
 {% endblock content %}
 
@@ -628,7 +642,7 @@
         isDetectionRunning = false;
         startDetectionButton.innerHTML = "Start Detection";
         
-        // ✅ Close the modal when stopping detection
+        // Close the modal when stopping detection
         const videoModalInstance = bootstrap.Modal.getInstance(document.getElementById('videoModal'));
         videoModalInstance.hide();
     

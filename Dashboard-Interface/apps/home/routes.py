@@ -18,11 +18,11 @@ from jinja2 import TemplateNotFound
 import pandas as pd
 import torch
 
-# Choose device: MPS for Mac M1, fallback to CPU
+# Choose device to run detection on: MPS for Mac M1, fallback to CPU
 device = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
 print(f"Using device: {device}")
 
-# Load model once at module level
+# Load model 
 model = YOLO("/Users/zekk/Documents/Code/YoloProject/Yolov11/ClassAttendantWeight_640.pt")
 names = ['Chantra', 'David', 'Kholine', 'Meysorng', 'Monineath', 'Mony',
          'Nyvath', 'Pheakdey', 'Piseth', 'Sopheak', 'Theary', 'Vatana', 'Vireak']
@@ -36,7 +36,7 @@ student_list = [{"Name": name, "Email": f"{name.lower()}@mail.com"} for name in 
 attendance_df = pd.read_excel(excelPath)
 session_count = 1
 
-# Initialize dict to track detected face, time & date
+# Initialize dictionary to track detected face, time & date
 detected_faces_set = set()  
 detection_start_times = defaultdict(lambda: None)
 detection_dates = {} 
@@ -44,13 +44,7 @@ detection_dates = {}
 # Check if there's a session info column
 def load_session_info():
     # Look for a specific row/column to store session info
-    session_info_row = attendance_df.iloc[0]  # Or adjust this if you have a different place for session info
-    return session_info_row['session_count'], session_info_row['last_session_date']
-
-# Check if there's a session info column
-def load_session_info():
-    # Look for a specific row/column to store session info
-    session_info_row = attendance_df.iloc[0]  # Or adjust this if you have a different place for session info
+    session_info_row = attendance_df.iloc[0] 
     return session_info_row['session_count'], session_info_row['last_session_date']
 
 @blueprint.route('/start_session', methods=['POST'])
@@ -70,7 +64,7 @@ def start_session():
         attendance_df.to_excel(excelPath, index=False)
         session_count += 1
 
-        # 🔁 Reset state for new session
+        # Reset state for new session
         detected_faces_set.clear()
         detection_dates.clear()
         detection_start_times.clear()
@@ -100,7 +94,7 @@ def process_frame():
     current_time = time.time()
     today_str = datetime.now().strftime("%d-%m-%Y")
 
-    # ✅ Use the latest session column (assumes last column is session)
+    # Use the latest session column (assumes last column is session)
     session_col = attendance_df.columns[-1]
 
     for result in results:
@@ -173,8 +167,6 @@ def route_template(template):
     except:
         return render_template('home/page-500.html'), 500
 
-
-# Helper - Extract current page name from request
 def get_segment(request):
 
     try:
