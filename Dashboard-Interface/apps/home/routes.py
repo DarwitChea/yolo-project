@@ -14,9 +14,15 @@ from ultralytics import YOLO
 from apps.home import blueprint
 from flask import jsonify, render_template, request
 from flask_login import login_required
+from flask import send_file
 from jinja2 import TemplateNotFound
 import pandas as pd
 import torch
+import re
+from apps import db
+from apps.home.models import Attendance
+from apps.home.models import Student
+
 
 # Choose device to run detection on: MPS for Mac M1, fallback to CPU
 device = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
@@ -36,7 +42,7 @@ student_list = [{"Name": name, "Email": f"{name.lower()}@mail.com"} for name in 
 attendance_df = pd.read_excel(excelPath)
 session_count = 1
 
-# Initialize dictionary to track detected face, time & date
+# Initialize dict to track detected face, time & date
 detected_faces_set = set()  
 detection_start_times = defaultdict(lambda: None)
 detection_dates = {} 
@@ -47,55 +53,48 @@ def load_session_info():
     session_info_row = attendance_df.iloc[0] 
     return session_info_row['session_count'], session_info_row['last_session_date']
 
+def extract_session_number(session_label):
+    match = re.search(r'Session (\d+)', session_label)
+    return int(match.group(1)) if match else float('inf')
+
 @blueprint.route('/start_session', methods=['POST'])
 @login_required
 def start_session():
-    global attendance_df, session_count, excelPath
-    global detected_faces_set, detection_dates, detection_start_times  
-    
-    attendance_df = pd.read_excel(excelPath)
-    session_count = sum(col.startswith("Session") for col in attendance_df.columns) + 1
+    global detected_faces_set, detection_dates, detection_start_times, session_count
 
+    # Generate session label
     today_str = datetime.now().strftime("%d-%m-%Y")
+    existing_sessions = db.session.query(Attendance.session).distinct().all()
+    session_count = len(existing_sessions) + 1
     session_col = f"Session {session_count}\n{today_str}"
 
-    if session_col not in attendance_df.columns:
-        attendance_df[session_col] = 0
-        attendance_df.to_excel(excelPath, index=False)
-        session_count += 1
+    # Reset session state
+    detected_faces_set.clear()
+    detection_dates.clear()
+    detection_start_times.clear()
 
-        # Reset state for new session
-        detected_faces_set.clear()
-        detection_dates.clear()
-        detection_start_times.clear()
-
-        return jsonify({"message": f"New session '{session_col}' started."}), 200
-    else:
-        return jsonify({"message": f"Session '{session_col}' already exists."}), 200
+    return jsonify({"message": f"New session '{session_col}' started."}), 200
 
 @blueprint.route('/process_frame', methods=['POST'])
 @login_required
 def process_frame():
-    global attendance_df, detected_faces_set, detection_dates, detection_start_times
+    global detected_faces_set, detection_dates, detection_start_times, session_count
 
     if 'image' not in request.files:
         return jsonify({"error": "No image file provided"}), 400
 
     image_file = request.files['image']
-    img = Image.open(io.BytesIO(image_file.read()))
-    img = img.convert('RGB')
+    img = Image.open(io.BytesIO(image_file.read())).convert('RGB')
     img_np = np.array(img)
     resized_frame = cv2.resize(img_np, (640, 480))
 
-    # Run YOLO inference
     results = model.predict(source=resized_frame, device=device)[0]
-
     detected_faces = []
+    confirmed_names = []
+
     current_time = time.time()
     today_str = datetime.now().strftime("%d-%m-%Y")
-
-    # Use the latest session column (assumes last column is session)
-    session_col = attendance_df.columns[-1]
+    session_col = f"Session {session_count}\n{today_str}"
 
     for result in results:
         for box, conf, cls in zip(result.boxes.xyxy, result.boxes.conf, result.boxes.cls):
@@ -105,45 +104,136 @@ def process_frame():
                 width = x2 - x1
                 height = y2 - y1
 
-                # Track if the person has already been detected in this session
-                if name not in detected_faces_set:
-                    detected_faces_set.add(name)
-                    detection_dates[name] = today_str
+                # Always add the face to display list
+                detected_faces.append({
+                    "name": name,
+                    "x": int(x1),
+                    "y": int(y1),
+                    "conf": float(conf),
+                    "width": int(width),
+                    "height": int(height),
+                    "date_detected": today_str
+                })
+
+                # Begin tracking detection
+                if name not in detection_start_times:
                     detection_start_times[name] = current_time
+                    detection_dates[name] = today_str
 
-                # If detected long enough, mark as present
-                if detection_start_times.get(name):
-                    duration = current_time - detection_start_times[name]
-                    if duration >= 3:
-                        detected_faces.append({
-                            "name": name,
-                            "x": int(x1),
-                            "y": int(y1),
-                            "conf": float(conf),
-                            "width": int(width),
-                            "height": int(height),
-                            "date_detected": detection_dates.get(name)
-                        })
+                duration = current_time - detection_start_times[name]
 
-                        attendance_df.loc[attendance_df["Name"] == name, session_col] = 1
+                # Get student object
+                student = Student.query.filter_by(name=name).first()
+                if not student:
+                    continue  # skip unknown faces
 
-    attendance_df.to_excel(excelPath, index=False)
-    return jsonify({"detected": detected_faces})
+                # Check if already logged
+                already_logged = Attendance.query.filter_by(
+                    student_id=student.id,
+                    session=session_col,
+                    date=today_str
+                ).first()
 
+                # Only log if held for 2s and not already recorded
+                if duration >= 2 and not already_logged:
+                    record = Attendance(
+                        student_id=student.id,
+                        session=session_col,
+                        date=today_str,
+                        present=True,
+                        confidence=float(conf),
+                        timestamp=datetime.now().strftime("%H:%M:%S")
+                    )
+                    db.session.add(record)
+                    db.session.commit()
+                    confirmed_names.append(name)
+
+    return jsonify({
+        "detected": detected_faces,
+        "confirmed": confirmed_names
+    })
+
+@blueprint.route('/export_attendance')
+@login_required
+def export_attendance():
+    import pandas as pd
+    from io import BytesIO
+    from flask import send_file
+    import re
+
+    students = Student.query.all()
+    records = Attendance.query.all()
+
+    # Get sessions sorted by numeric session number
+    session_columns = sorted(
+        {r.session for r in records},
+        key=lambda s: int(re.search(r'\d+', s).group()) if re.search(r'\d+', s) else 0
+    )
+
+    # Build attendance map: {student_id: {session: present}}
+    attendance_map = {}
+    for r in records:
+        if r.student_id not in attendance_map:
+            attendance_map[r.student_id] = {}
+        attendance_map[r.student_id][r.session] = 1 if r.present else 0
+
+    # Build export rows
+    data = []
+    for idx, student in enumerate(students, start=1):
+        row = {
+            "No": idx,
+            "Name": student.name,
+            "Email": student.email
+        }
+        for session in session_columns:
+            row[session] = attendance_map.get(student.id, {}).get(session, 0)
+        data.append(row)
+
+    df = pd.DataFrame(data)
+
+    # Export to Excel in memory
+    output = BytesIO()
+    df.to_excel(output, index=False)
+    output.seek(0)
+
+    return send_file(
+        output,
+        download_name="attendance_report.xlsx",
+        as_attachment=True,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
 
 @blueprint.route('/index')
 @login_required
 def index():
-    global excelPath 
+    students = Student.query.all()
+    records = Attendance.query.all()
 
-    df = pd.read_excel(excelPath)
-    columns = df.columns.tolist()
-    data = df.to_dict(orient='records')
-    
-    # Pass the DataFrame to the template as a list of dicts
-    # data = attendance_df.to_dict(orient="records")
-    # columns = attendance_df.columns.tolist()  # List of column names (including dynamic session columns)
-    
+    # 🛠 Sort by extracted session number
+    session_columns = sorted(
+        {r.session for r in records},
+        key=extract_session_number
+    )
+
+    # Build attendance map
+    attendance_map = {}
+    for r in records:
+        if r.student_id not in attendance_map:
+            attendance_map[r.student_id] = {}
+        attendance_map[r.student_id][r.session] = 1 if r.present else 0
+
+    # Build data table
+    data = []
+    for student in students:
+        row = {
+            "Name": student.name,
+            "Email": student.email
+        }
+        for session in session_columns:
+            row[session] = attendance_map.get(student.id, {}).get(session, 0)
+        data.append(row)
+
+    columns = ["Name", "Email"] + session_columns
     return render_template('home/index.html', data=data, columns=columns, segment='index')
 
 @blueprint.route('/<template>')
