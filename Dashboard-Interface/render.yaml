@@ -6,7 +6,7 @@ services:
     region: singapore  # region should be same as your database region.
     rootDir: Dashboard-Interface
     buildCommand: "./build.sh"
-    startCommand: "gunicorn -c gunicorn-cfg.py run:app"
+    startCommand: "gunicorn run:app"
     envVars:
       - key: SECRET_KEY
         generateValue: true
