@@ -15,6 +15,8 @@ from apps.home import blueprint
 from flask import jsonify, render_template, request
 from flask_login import login_required
 from flask import send_file
+from sqlalchemy.exc import OperationalError
+from sqlalchemy import text
 from jinja2 import TemplateNotFound
 import pandas as pd
 import torch
@@ -104,7 +106,6 @@ def process_frame():
                 width = x2 - x1
                 height = y2 - y1
 
-                # Always add the face to display list
                 detected_faces.append({
                     "name": name,
                     "x": int(x1),
@@ -115,32 +116,32 @@ def process_frame():
                     "date_detected": today_str
                 })
 
-                # Begin tracking detection
+                # Start timing detection if first seen
                 if name not in detection_start_times:
                     detection_start_times[name] = current_time
                     detection_dates[name] = today_str
 
                 duration = current_time - detection_start_times[name]
 
-                # Get student object
+                # Get student from DB
                 student = Student.query.filter_by(name=name).first()
                 if not student:
                     continue  # skip unknown faces
 
-                # Check if already logged
+                # Avoid duplicate logging
                 already_logged = Attendance.query.filter_by(
                     student_id=student.id,
                     session=session_col,
                     date=today_str
                 ).first()
 
-                # Only log if held for 2s and not already recorded
+                # Only log if held for at least 2s and not already recorded
                 if duration >= 2 and not already_logged:
                     record = Attendance(
                         student_id=student.id,
                         session=session_col,
                         date=today_str,
-                        present=True,
+                        status='1',  
                         confidence=float(conf),
                         timestamp=datetime.now().strftime("%H:%M:%S")
                     )
@@ -152,7 +153,7 @@ def process_frame():
         "detected": detected_faces,
         "confirmed": confirmed_names
     })
-
+    
 @blueprint.route('/export_attendance')
 @login_required
 def export_attendance():
@@ -164,18 +165,18 @@ def export_attendance():
     students = Student.query.all()
     records = Attendance.query.all()
 
-    # Get sessions sorted by numeric session number
+    # Get sessions sorted by session number (e.g., "Session 1\n09-06-2025")
     session_columns = sorted(
         {r.session for r in records},
         key=lambda s: int(re.search(r'\d+', s).group()) if re.search(r'\d+', s) else 0
     )
 
-    # Build attendance map: {student_id: {session: present}}
+    # Build attendance map: {student_id: {session: status}}
     attendance_map = {}
     for r in records:
         if r.student_id not in attendance_map:
             attendance_map[r.student_id] = {}
-        attendance_map[r.student_id][r.session] = 1 if r.present else 0
+        attendance_map[r.student_id][r.session] = r.status  # '0', '1', or 'P'
 
     # Build export rows
     data = []
@@ -186,7 +187,7 @@ def export_attendance():
             "Email": student.email
         }
         for session in session_columns:
-            row[session] = attendance_map.get(student.id, {}).get(session, 0)
+            row[session] = attendance_map.get(student.id, {}).get(session, '0')  # Default to '0'
         data.append(row)
 
     df = pd.DataFrame(data)
@@ -202,6 +203,67 @@ def export_attendance():
         as_attachment=True,
         mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
+    
+@blueprint.route('/update_attendance', methods=['POST'])
+@login_required
+def update_attendance():
+    try:
+        data = request.get_json()
+        updates = data.get('updates', [])
+
+        for update in updates:
+            student_id = update['student_id']
+            session_name = update['session_name']
+            status = update['status']
+
+            # Check for existing attendance record
+            record = Attendance.query.filter_by(
+                student_id=student_id,
+                session=session_name
+            ).first()
+
+            if record:
+                record.status = status
+            else:
+                new_record = Attendance(
+                    student_id=student_id,
+                    session=session_name,
+                    date=datetime.now().strftime('%d-%m-%Y'),
+                    status=status
+                )
+                db.session.add(new_record)
+
+        db.session.commit()
+        return jsonify({'message': 'Attendance updated successfully'})
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+  
+@blueprint.route('/delete_session', methods=['POST'])
+@login_required
+def delete_session():
+    from flask import request, jsonify
+    data = request.get_json()
+    session_name = data.get('session')
+
+    print(f"Deleting full session key: '{session_name}'")
+
+    if not session_name:
+        return jsonify(success=False, message="Session name missing")
+
+    try:
+        rows_deleted = Attendance.query.filter_by(session=session_name).delete()
+        db.session.commit()
+
+        if rows_deleted == 0:
+            return jsonify(success=False, message="No matching session found.")
+        return jsonify(success=True)
+    except Exception as e:
+        db.session.rollback()
+        return jsonify(success=False, message=f"SQL error: {str(e)}")
+
 
 @blueprint.route('/index')
 @login_required
@@ -220,12 +282,13 @@ def index():
     for r in records:
         if r.student_id not in attendance_map:
             attendance_map[r.student_id] = {}
-        attendance_map[r.student_id][r.session] = 1 if r.present else 0
+        attendance_map[r.student_id][r.session] = r.status 
 
     # Build data table
     data = []
     for student in students:
         row = {
+            "student_id": student.id,
             "Name": student.name,
             "Email": student.email
         }

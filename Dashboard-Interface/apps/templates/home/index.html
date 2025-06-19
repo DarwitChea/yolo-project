@@ -34,10 +34,17 @@
                     <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7 text-start" style="white-space: nowrap;">Name</th>
                     <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7 text-start" style="white-space: nowrap;">Email</th>
                     {% for session in columns if session not in ['Name', 'Email'] %}
-                      <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7 text-center" style="min-width: 120px; max-width: 140px;">
+                      <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7 text-center position-relative" style="min-width: 120px; max-width: 140px;">
                         <div style="white-space: normal; word-break: break-word; display: inline-block;">
                           {{ session.replace('\n', '<br>') | safe }}
                         </div>
+                        <button
+                          class="btn btn-sm btn-link text-danger position-absolute top-0 end-0"
+                          onclick="deleteSession(`{{ session.strip() }}`)"
+                          title="Delete this session"
+                        >
+                          ✖
+                        </button>
                       </th>
                     {% endfor %}
                   </tr>
@@ -49,17 +56,21 @@
                       <td class="text-start" style="white-space: nowrap;">{{ row['Name'] }}</td>
                       <td class="text-start" style="white-space: nowrap;">{{ row['Email'] }}</td>
                       {% for session in columns if session not in ['Name', 'Email'] %}
-                        <td class="text-center">
-                          {{ row[session] }}
+                        <td class="text-center align-items-center">
+                          <select class="attendance-select form-control text-center"
+                                  data-student-id="{{ row['student_id'] }}"
+                                  data-session="{{ session }}">
+                            <option value="0" {% if row[session] == '0' %}selected{% endif %}>0</option>
+                            <option value="1" {% if row[session] == '1' %}selected{% endif %}>1</option>
+                            <option value="P" {% if row[session] == 'P' %}selected{% endif %}>P</option>
+                          </select>
                         </td>
                       {% endfor %}
                     </tr>
                   {% endfor %}
                 </tbody>
               </table>
-              
             </div>
-            
           </div>
         </div>
       </div>
@@ -90,6 +101,17 @@
       </div>
     </div>
     </div>
+    <!-- Toast Container -->
+    <div class="position-fixed bottom-0 end-0 p-3" style="z-index: 1055">
+      <div id="attendanceToast" class="toast bg-gradient-success text-secondary border-0" role="alert" aria-live="assertive" aria-atomic="true" data-bs-delay="1000">
+        <div class="d-flex">
+          <div class="toast-body text-center text-white text-capitalize">
+            Updated successfully!
+          </div>
+          <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+      </div>
+</div>
     <!-- <div class="container-fluid py-4">
       <div class="row">
         <div class="col-xl-3 col-sm-6 mb-xl-0 mb-4">
@@ -627,6 +649,8 @@
         const videoModalInstance = bootstrap.Modal.getInstance(document.getElementById('videoModal'));
         videoModalInstance.hide();
 
+        location.reload();
+
         return;
       }
 
@@ -701,7 +725,7 @@
 
               // Show "✔️ Recorded" inline on the right of the label (within box width)
               if (confirmedSet.has(name)) {
-                const recordedText = "✅ Recorded";
+                const recordedText = "✅";
                 overlayCtx.font = "bold 14px Arial";
                 const recordedWidth = overlayCtx.measureText(recordedText).width;
 
@@ -720,7 +744,78 @@
       window.location.href = "/export_attendance";
     }
   </script>
+
+  <script>
+    document.querySelectorAll('.attendance-select').forEach(select => {
+      select.addEventListener('change', () => {
+        const studentId = select.dataset.studentId;
+        const session = select.dataset.session;
+        const value = select.value;
+
+        console.log(`[DEBUG] Auto-saving:`, { studentId, session, value });
+    
+        fetch('/update_attendance', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            updates: [
+              {
+                student_id: studentId,
+                session_name: session,
+                status: value
+              }
+            ]
+          })
+        })
+        .then(res => res.json())
+        .then(data => {
+          console.log(`[DEBUG] Response:`, data);
   
+          // Toast msg
+          const toastEl = document.getElementById('attendanceToast');
+          const toast = new bootstrap.Toast(toastEl);
+          toast.show();
+        })
+        .catch(err => {
+          console.error('Auto-update failed:', err);
+          alert('Failed to save attendance change.');
+        });
+      });
+    });
+  </script>
+
+  <script>
+    function deleteSession(sessionName) {
+      if (!confirm(`Are you sure you want to delete ${sessionName}? This cannot be undone.`)) return;
+    
+      fetch('/delete_session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ session: sessionName })
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) {
+          const toastEl = document.getElementById('attendanceToast');
+          toastEl.querySelector('.toast-body').innerText = `Deleted successfully`;
+    
+          const toast = new bootstrap.Toast(toastEl);
+          toast.show();
+    
+          setTimeout(() => location.reload(), 1000);
+        } else {
+          alert(data.message || 'Failed to delete session.');
+        }
+      })
+      .catch(err => {
+        console.error(err);
+        alert('Error deleting session.');
+      });
+    }    
+  </script>
+    
   <script>
     var ctx = document.getElementById("chart-bars").getContext("2d");
 
@@ -973,9 +1068,17 @@
 
 {% block stylesheets %}
   <style>
+
   .btn-close-black {
     filter: invert(1);
   }
 
+  .attendance-select {
+    display: block;
+    margin: 0 auto;
+    text-align: center;
+    text-align-last: center; 
+    width: 60px;
+  }
   </style>
 {% endblock stylesheets %}
