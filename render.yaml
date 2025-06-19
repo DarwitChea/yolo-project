@@ -3,7 +3,7 @@ services:
     name: flask-mat-dashboard
     plan: starter
     env: python
-    region: singapore  # region should be same as your database region.
+    region: singapore  
     rootDir: Dashboard-Interface
     buildCommand: "./build.sh"
     startCommand: "gunicorn -c gunicorn-cfg.py run:app"
