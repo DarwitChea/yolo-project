@@ -13,6 +13,8 @@ flask-restx==0.5.1
 python-dotenv==0.19.2
 opencv-python==4.9.0.80
 numpy==1.26.4
+ultralytics==8.3.82
+
 
 
 # flask_mysqldb
