@@ -6,7 +6,6 @@ Copyright (c) 2019 - present AppSeed.us
 from collections import defaultdict
 from datetime import datetime
 import io
-from PIL import Image
 import time
 import cv2
 import numpy as np
@@ -86,8 +85,8 @@ def process_frame():
         return jsonify({"error": "No image file provided"}), 400
 
     image_file = request.files['image']
-    img = Image.open(io.BytesIO(image_file.read())).convert('RGB')
-    img_np = np.array(img)
+    file_bytes = np.frombuffer(image_file.read(), np.uint8)
+    img_np = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
     resized_frame = cv2.resize(img_np, (640, 480))
 
     results = model.predict(source=resized_frame, device=device)[0]
