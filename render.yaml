@@ -5,7 +5,7 @@ services:
     env: python
     region: singapore  
     rootDir: Dashboard-Interface
-    buildCommand: "../build.sh"
+    buildCommand: "Dashboard-Interface/build.sh"
     startCommand: "gunicorn run:app"
     envVars:
       - key: SECRET_KEY
