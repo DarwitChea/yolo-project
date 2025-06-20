@@ -35,28 +35,28 @@ names = ['Chantra', 'David', 'Kholine', 'Meysorng', 'Monineath', 'Mony',
          'Nyvath', 'Pheakdey', 'Piseth', 'Sopheak', 'Theary', 'Vatana', 'Vireak']
 model.to(device)
 
-# Load excel sheet
-excelPath = '/Users/zekk/Documents/Code/YoloProject/Yolov11/attendance.xlsx'
+# # Load excel sheet
+# excelPath = '/Users/zekk/Documents/Code/YoloProject/Yolov11/attendance.xlsx'
 
-# Initialize student list & session count
-student_list = [{"Name": name, "Email": f"{name.lower()}@mail.com"} for name in names]
-attendance_df = pd.read_excel(excelPath)
-session_count = 1
+# # Initialize student list & session count
+# student_list = [{"Name": name, "Email": f"{name.lower()}@mail.com"} for name in names]
+# attendance_df = pd.read_excel(excelPath)
+# session_count = 1
 
-# Initialize dict to track detected face, time & date
-detected_faces_set = set()  
-detection_start_times = defaultdict(lambda: None)
-detection_dates = {} 
+# # Initialize dict to track detected face, time & date
+# detected_faces_set = set()  
+# detection_start_times = defaultdict(lambda: None)
+# detection_dates = {} 
 
-# Check if there's a session info column
-def load_session_info():
-    # Look for a specific row/column to store session info
-    session_info_row = attendance_df.iloc[0] 
-    return session_info_row['session_count'], session_info_row['last_session_date']
+# # Check if there's a session info column
+# def load_session_info():
+#     # Look for a specific row/column to store session info
+#     session_info_row = attendance_df.iloc[0] 
+#     return session_info_row['session_count'], session_info_row['last_session_date']
 
-def extract_session_number(session_label):
-    match = re.search(r'Session (\d+)', session_label)
-    return int(match.group(1)) if match else float('inf')
+# def extract_session_number(session_label):
+#     match = re.search(r'Session (\d+)', session_label)
+#     return int(match.group(1)) if match else float('inf')
 
 @blueprint.route('/start_session', methods=['POST'])
 @login_required
