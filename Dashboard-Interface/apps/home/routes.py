@@ -30,7 +30,7 @@ device = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
 print(f"Using device: {device}")
 
 # Load model 
-model = YOLO("/Users/zekk/Documents/Code/YoloProject/Yolov11/ClassAttendantWeight_640.pt")
+model = YOLO("apps/static/models/ClassAttendantWeight_320.pt")
 names = ['Chantra', 'David', 'Kholine', 'Meysorng', 'Monineath', 'Mony',
          'Nyvath', 'Pheakdey', 'Piseth', 'Sopheak', 'Theary', 'Vatana', 'Vireak']
 model.to(device)
