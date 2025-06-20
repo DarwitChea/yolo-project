@@ -5,7 +5,7 @@ Copyright (c) 2019 - present AppSeed.us
 
 import os
 
-bind = f"0.0.0.0:{os.getenv('PORT', '5000')}"
+bind = f"0.0.0.0:{os.environ['PORT']}"
 workers = 1
 accesslog = '-'
 loglevel = 'debug'
