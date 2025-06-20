@@ -6,6 +6,7 @@ Copyright (c) 2019 - present AppSeed.us
 from collections import defaultdict
 from datetime import datetime
 import io
+import os
 import time
 import cv2
 import numpy as np
@@ -30,7 +31,8 @@ device = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
 print(f"Using device: {device}")
 
 # Load model 
-model = YOLO("apps/static/models/ClassAttendantWeight_320.pt")
+model_path = os.path.join(os.path.dirname(__file__), '..', 'static', 'models', 'ClassAttendantWeight_320.pt')
+model = YOLO(model_path)
 names = ['Chantra', 'David', 'Kholine', 'Meysorng', 'Monineath', 'Mony',
          'Nyvath', 'Pheakdey', 'Piseth', 'Sopheak', 'Theary', 'Vatana', 'Vireak']
 model.to(device)
@@ -54,9 +56,9 @@ model.to(device)
 #     session_info_row = attendance_df.iloc[0] 
 #     return session_info_row['session_count'], session_info_row['last_session_date']
 
-# def extract_session_number(session_label):
-#     match = re.search(r'Session (\d+)', session_label)
-#     return int(match.group(1)) if match else float('inf')
+def extract_session_number(session_label):
+    match = re.search(r'Session (\d+)', session_label)
+    return int(match.group(1)) if match else float('inf')
 
 @blueprint.route('/start_session', methods=['POST'])
 @login_required
