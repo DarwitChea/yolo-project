@@ -45,10 +45,10 @@ model.to(device)
 # attendance_df = pd.read_excel(excelPath)
 # session_count = 1
 
-# # Initialize dict to track detected face, time & date
-# detected_faces_set = set()  
-# detection_start_times = defaultdict(lambda: None)
-# detection_dates = {} 
+# Initialize dict to track detected face, time & date
+detected_faces_set = set()  
+detection_start_times = defaultdict(lambda: None)
+detection_dates = {} 
 
 # # Check if there's a session info column
 # def load_session_info():
