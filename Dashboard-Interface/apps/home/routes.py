@@ -5,11 +5,13 @@ Copyright (c) 2019 - present AppSeed.us
 
 from collections import defaultdict
 from datetime import datetime
-import io
 import os
 import time
 import cv2
 import numpy as np
+import pandas as pd
+import torch
+import re
 from ultralytics import YOLO
 from apps.home import blueprint
 from flask import jsonify, render_template, request
@@ -18,43 +20,23 @@ from flask import send_file
 from sqlalchemy.exc import OperationalError
 from sqlalchemy import text
 from jinja2 import TemplateNotFound
-import pandas as pd
-import torch
-import re
 from apps import db
 from apps.home.models import Attendance
 from apps.home.models import Student
+from io import BytesIO
 
-
-# Choose device to run detection on: MPS for Mac M1, fallback to CPU
 device = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
 print(f"Using device: {device}")
 
-# Load model 
 model_path = os.path.join(os.path.dirname(__file__), '..', 'static', 'models', 'ClassAttendantWeight_320.pt')
 model = YOLO(model_path)
 names = ['Chantra', 'David', 'Kholine', 'Meysorng', 'Monineath', 'Mony',
          'Nyvath', 'Pheakdey', 'Piseth', 'Sopheak', 'Theary', 'Vatana', 'Vireak']
 model.to(device)
 
-# # Load excel sheet
-# excelPath = '/Users/zekk/Documents/Code/YoloProject/Yolov11/attendance.xlsx'
-
-# # Initialize student list & session count
-# student_list = [{"Name": name, "Email": f"{name.lower()}@mail.com"} for name in names]
-# attendance_df = pd.read_excel(excelPath)
-# session_count = 1
-
-# Initialize dict to track detected face, time & date
 detected_faces_set = set()  
 detection_start_times = defaultdict(lambda: None)
 detection_dates = {} 
-
-# # Check if there's a session info column
-# def load_session_info():
-#     # Look for a specific row/column to store session info
-#     session_info_row = attendance_df.iloc[0] 
-#     return session_info_row['session_count'], session_info_row['last_session_date']
 
 def extract_session_number(session_label):
     match = re.search(r'Session (\d+)', session_label)
@@ -65,13 +47,13 @@ def extract_session_number(session_label):
 def start_session():
     global detected_faces_set, detection_dates, detection_start_times, session_count
 
-    # Generate session label
+    # Create session label
     today_str = datetime.now().strftime("%d-%m-%Y")
     existing_sessions = db.session.query(Attendance.session).distinct().all()
     session_count = len(existing_sessions) + 1
     session_col = f"Session {session_count}\n{today_str}"
 
-    # Reset session state
+    # Reset session
     detected_faces_set.clear()
     detection_dates.clear()
     detection_start_times.clear()
@@ -117,26 +99,25 @@ def process_frame():
                     "date_detected": today_str
                 })
 
-                # Start timing detection if first seen
+                # Start timing detection 
                 if name not in detection_start_times:
                     detection_start_times[name] = current_time
                     detection_dates[name] = today_str
 
                 duration = current_time - detection_start_times[name]
 
-                # Get student from DB
                 student = Student.query.filter_by(name=name).first()
                 if not student:
-                    continue  # skip unknown faces
+                    continue  
 
-                # Avoid duplicate logging
+                # This line for check so no duplicate
                 already_logged = Attendance.query.filter_by(
                     student_id=student.id,
                     session=session_col,
                     date=today_str
                 ).first()
 
-                # Only log if held for at least 2s and not already recorded
+                # Only log if >2s and not already recorded
                 if duration >= 2 and not already_logged:
                     record = Attendance(
                         student_id=student.id,
@@ -158,15 +139,12 @@ def process_frame():
 @blueprint.route('/export_attendance')
 @login_required
 def export_attendance():
-    import pandas as pd
-    from io import BytesIO
-    from flask import send_file
-    import re
+  
 
     students = Student.query.all()
     records = Attendance.query.all()
 
-    # Get sessions sorted by session number (e.g., "Session 1\n09-06-2025")
+    # Get sessions sorted by session number
     session_columns = sorted(
         {r.session for r in records},
         key=lambda s: int(re.search(r'\d+', s).group()) if re.search(r'\d+', s) else 0
@@ -193,7 +171,7 @@ def export_attendance():
 
     df = pd.DataFrame(data)
 
-    # Export to Excel in memory
+    # Export to Excel 
     output = BytesIO()
     df.to_excel(output, index=False)
     output.seek(0)
@@ -217,7 +195,6 @@ def update_attendance():
             session_name = update['session_name']
             status = update['status']
 
-            # Check for existing attendance record
             record = Attendance.query.filter_by(
                 student_id=student_id,
                 session=session_name
@@ -272,7 +249,7 @@ def index():
     students = Student.query.all()
     records = Attendance.query.all()
 
-    # 🛠 Sort by extracted session number
+    # Sort by extracted session number
     session_columns = sorted(
         {r.session for r in records},
         key=extract_session_number
